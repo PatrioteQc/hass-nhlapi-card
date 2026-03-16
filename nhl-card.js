@@ -77,10 +77,30 @@ class NHLCard extends HTMLElement {
     const assist2Player = attrs.assist2_player_name || '';
     const goalType = attrs.goal_type || '';
 
+    const nextGameDate = attrs.next_game_date || '';
+    const nextGameTime = attrs.next_game_time || '';
+    const nextGameDateTime = attrs.next_game_datetime || null;
+
+    // Format next game for display (use HA's date format if available)
+    let formattedNextGame = '';
+    if (nextGameDateTime) {
+      // Use Home Assistant's format_date if available, otherwise fallback
+      const dateObj = new Date(nextGameDateTime);
+      if (!isNaN(dateObj.getTime())) {
+        const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+        formattedNextGame = dateObj.toLocaleDateString(undefined, options);
+      } else {
+        formattedNextGame = nextGameDate;
+      }
+    } else if (nextGameDate) {
+      formattedNextGame = nextGameDate;
+    }
+
     const gameState = state;
     const isLive = gameState === 'LIVE' || gameState === 'CRIT';
     const isFinal = gameState === 'FINAL' || gameState === 'OFF';
     const isPregame = gameState === 'PRE';
+    const isFuture = gameState.includes('Next Game') || (!isLive && !isFinal && !isPregame && awayName !== 'No Game Scheduled');
 
     let periodDisplay = '';
     if (isLive) {
@@ -221,6 +241,26 @@ class NHLCard extends HTMLElement {
             font-size: 18px;
             margin-bottom: 8px;
           }
+          .pregame-info .next-game-date {
+            font-size: 20px;
+            font-weight: bold;
+            margin-bottom: 4px;
+          }
+          .pregame-info .next-game-time {
+            font-size: 24px;
+            font-weight: bold;
+            color: var(--primary-color);
+            margin-bottom: 12px;
+          }
+          .pregame-info .matchup {
+            font-size: 16px;
+            margin-bottom: 8px;
+          }
+          .pregame-info .records {
+            font-size: 13px;
+            color: var(--secondary-text-color);
+            margin-bottom: 8px;
+          }
           .pregame-info .broadcasts {
             font-size: 13px;
             color: var(--secondary-text-color);
@@ -240,9 +280,21 @@ class NHLCard extends HTMLElement {
               <div style="font-size: 48px; margin-bottom: 12px;">🏒</div>
               No Game Scheduled
             </div>
-          ` : isPregame || gameState.includes('Next Game') ? `
+          ` : isPregame ? `
             <div class="pregame-info">
               <div class="next-game">${state}</div>
+              ${attrs.national_broadcasts ? `
+                <div class="broadcasts">
+                  ${Array.isArray(attrs.national_broadcasts) ? attrs.national_broadcasts.join(', ') : attrs.national_broadcasts}
+                </div>
+              ` : ''}
+            </div>
+          ` : isFuture ? `
+            <div class="pregame-info">
+              <div class="next-game-date">${formattedNextGame}</div>
+              ${nextGameTime ? `<div class="next-game-time">${nextGameTime}</div>` : ''}
+              <div class="matchup">${awayName} @ ${homeName}</div>
+              ${awayRecord || homeRecord ? `<div class="records">${awayRecord || ''} vs ${homeRecord || ''}</div>` : ''}
               ${attrs.national_broadcasts ? `
                 <div class="broadcasts">
                   ${Array.isArray(attrs.national_broadcasts) ? attrs.national_broadcasts.join(', ') : attrs.national_broadcasts}
