@@ -419,7 +419,7 @@ class NHLCard extends HTMLElement {
                 ` : ''}
                 <div class="team-name">${awayName}</div>
                 ${awayRecord ? `<div class="team-record">${awayRecord}</div>` : ''}
-                ${isLive || isFinal ? `<div class="team-sog">${awaySog} ${this._t(lang, 'sog')}</div>` : ''}
+                ${(isLive || isFinal) && awaySog !== null && awaySog !== undefined && awaySog !== 'null' ? `<div class="team-sog">${awaySog} ${this._t(lang, 'sog')}</div>` : ''}
               </div>
               
               <div class="score-section">
@@ -437,7 +437,7 @@ class NHLCard extends HTMLElement {
                 ` : ''}
                 <div class="team-name">${homeName}</div>
                 ${homeRecord ? `<div class="team-record">${homeRecord}</div>` : ''}
-                ${isLive || isFinal ? `<div class="team-sog">${homeSog} ${this._t(lang, 'sog')}</div>` : ''}
+                ${(isLive || isFinal) && homeSog !== null && homeSog !== undefined && homeSog !== 'null' ? `<div class="team-sog">${homeSog} ${this._t(lang, 'sog')}</div>` : ''}
               </div>
             </div>
 
