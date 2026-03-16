@@ -1,0 +1,7 @@
+{
+  "name": "NHL Card",
+  "content_in_root": false,
+  "filename": "nhl-card.js",
+  "render_readme": true,
+  "type": "lovelace"
+}
