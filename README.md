@@ -108,7 +108,7 @@ show_team_logos: false
 ![Live Game](live-game.png)
 
 ### Pregame
-![Pregame](pregame.png)
+![Pregame](pre-game.png)
 
 ### Final Score
 ![Final](final.png)
