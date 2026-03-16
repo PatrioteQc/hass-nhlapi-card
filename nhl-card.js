@@ -40,6 +40,71 @@ class NHLCard extends HTMLElement {
     this.render();
   }
 
+  _t(lang, key) {
+    const translations = {
+      en: {
+        nextGame: 'Next Game',
+        pregame: 'Pregame',
+        noGame: 'No Game Scheduled',
+        live: 'LIVE',
+        critical: 'CRITICAL',
+        final: 'FINAL',
+        lastGoal: 'Last Goal',
+        assists: 'Assists',
+        sog: 'SOG'
+      },
+      fr: {
+        nextGame: 'Prochain Match',
+        pregame: 'Avant-match',
+        noGame: 'Aucun match prévu',
+        live: 'EN DIRECT',
+        critical: 'CRITIQUE',
+        final: 'FINAL',
+        lastGoal: 'Dernier But',
+        assists: 'Passes',
+        sog: 'Tirs'
+      }
+    };
+    const language = lang && lang.startsWith('fr') ? 'fr' : 'en';
+    return translations[language][key] || translations['en'][key];
+  }
+
+  _formatTime(timeStr, lang) {
+    if (!timeStr) return '';
+    const isFrench = lang && lang.startsWith('fr');
+    
+    if (isFrench) {
+      const match = timeStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
+      if (match) {
+        let hours = parseInt(match[1]);
+        const minutes = match[2];
+        const period = match[3].toUpperCase();
+        
+        if (period === 'PM' && hours !== 12) hours += 12;
+        if (period === 'AM' && hours === 12) hours = 0;
+        
+        return `${hours}h${minutes}`;
+      }
+    }
+    return timeStr;
+  }
+
+  _formatDate(dateStr, lang) {
+    if (!dateStr) return '';
+    const dateObj = new Date(dateStr);
+    if (isNaN(dateObj.getTime())) return dateStr;
+    
+    const isFrench = lang && lang.startsWith('fr');
+    const options = { 
+      weekday: 'long', 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    };
+    
+    return dateObj.toLocaleDateString(isFrench ? 'fr-FR' : 'en-US', options);
+  }
+
   render() {
     if (!this._entity) {
       this.innerHTML = `
@@ -54,6 +119,7 @@ class NHLCard extends HTMLElement {
 
     const attrs = this._entity.attributes;
     const state = this._entity.state;
+    const lang = this._hass?.language || 'en';
 
     const awayName = attrs.away_name || 'Away';
     const homeName = attrs.home_name || 'Home';
@@ -81,32 +147,20 @@ class NHLCard extends HTMLElement {
     const nextGameTime = attrs.next_game_time || '';
     const nextGameDateTime = attrs.next_game_datetime || null;
 
-    // Format next game for display (use HA's date format if available)
+    // Format date and time
     let formattedNextGame = '';
+    let formattedTime = '';
     if (nextGameDateTime) {
-      // Use Home Assistant's format_date if available, otherwise fallback
-      const dateObj = new Date(nextGameDateTime);
-      if (!isNaN(dateObj.getTime())) {
-        const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-        formattedNextGame = dateObj.toLocaleDateString(undefined, options);
-      } else {
-        formattedNextGame = nextGameDate;
-      }
+      formattedNextGame = this._formatDate(nextGameDateTime, lang);
+      formattedTime = this._formatTime(nextGameTime, lang);
     } else if (nextGameDate) {
       formattedNextGame = nextGameDate;
+      formattedTime = this._formatTime(nextGameTime, lang);
     }
 
     // Game state detection - based on hass-nhlapi sensor.py logic
     // game_state attribute contains: FUT, PRE, LIVE, CRIT, OVER, FINAL, OFF
-    const gameState = String(attrs.game_state || 'FUT');  // Ensure it's a string
-    
-    console.log('NHL Card Debug:', {
-      gameState: gameState,
-      gameStateType: typeof attrs.game_state,
-      rawGameState: attrs.game_state,
-      awayName: attrs.away_name,
-      homeName: attrs.home_name
-    });
+    const gameState = String(attrs.game_state || 'FUT');
     
     const isFuture = gameState === 'FUT';
     const isPregame = gameState === 'PRE';
@@ -118,7 +172,7 @@ class NHLCard extends HTMLElement {
     if (isLive) {
       periodDisplay = isIntermission ? 'INT' : `${currentPeriod} ${timeRemaining}`;
     } else if (isFinal) {
-      periodDisplay = 'FINAL';
+      periodDisplay = this._t(lang, 'final');
     } else if (isPregame) {
       periodDisplay = 'PRE';
     }
@@ -132,20 +186,29 @@ class NHLCard extends HTMLElement {
           }
           .game-header {
             text-align: center;
-            margin-bottom: 12px;
-            font-size: 14px;
+            margin-bottom: 16px;
+            font-size: 13px;
             color: var(--secondary-text-color);
             text-transform: uppercase;
-            letter-spacing: 0.5px;
+            letter-spacing: 1.5px;
+            font-weight: 600;
           }
           .game-header.live {
-            color: var(--error-color, #f44336);
+            color: var(--error-color);
             font-weight: bold;
             animation: pulse 2s infinite;
           }
           @keyframes pulse {
             0%, 100% { opacity: 1; }
             50% { opacity: 0.6; }
+          }
+          .pregame-header {
+            text-align: center;
+            font-size: 12px;
+            color: var(--disabled-color);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 16px;
           }
           .scoreboard {
             display: flex;
@@ -158,12 +221,13 @@ class NHLCard extends HTMLElement {
             text-align: center;
           }
           .team-logo {
-            width: 64px;
-            height: 64px;
-            margin: 0 auto 8px;
+            width: 72px;
+            height: 72px;
+            margin: 0 auto 12px;
             background-size: contain;
             background-repeat: no-repeat;
             background-position: center;
+            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));
           }
           .team-logo.away {
             background-image: url('${awayLogo}');
@@ -172,9 +236,10 @@ class NHLCard extends HTMLElement {
             background-image: url('${homeLogo}');
           }
           .team-name {
-            font-size: 16px;
-            font-weight: bold;
-            margin-bottom: 4px;
+            font-size: 15px;
+            font-weight: 600;
+            margin-bottom: 6px;
+            color: var(--primary-text-color);
           }
           .team-record {
             font-size: 12px;
@@ -183,138 +248,193 @@ class NHLCard extends HTMLElement {
           .team-sog {
             font-size: 11px;
             color: var(--secondary-text-color);
-            margin-top: 4px;
+            margin-top: 6px;
           }
           .score-section {
             text-align: center;
             padding: 0 16px;
           }
           .score {
-            font-size: 42px;
-            font-weight: bold;
+            font-size: 44px;
+            font-weight: 700;
             line-height: 1;
             margin-bottom: 8px;
+            color: var(--primary-text-color);
+            font-family: 'SF Mono', Monaco, monospace;
           }
           .score-divider {
             font-size: 24px;
-            color: var(--secondary-text-color);
+            color: var(--disabled-color);
           }
           .period-info {
-            font-size: 14px;
+            font-size: 13px;
             color: var(--secondary-text-color);
             text-transform: uppercase;
+            letter-spacing: 0.5px;
+          }
+          .pregame-matchup {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 24px;
+            margin-bottom: 16px;
+          }
+          .pregame-team {
+            text-align: center;
+          }
+          .pregame-team .team-logo {
+            width: 80px;
+            height: 80px;
+            margin-bottom: 8px;
+          }
+          .pregame-team .team-name {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--primary-text-color);
+          }
+          .pregame-vs {
+            font-size: 18px;
+            color: var(--disabled-color);
+            font-weight: 600;
+          }
+          .game-datetime {
+            text-align: center;
+            margin-bottom: 16px;
+          }
+          .game-date {
+            font-size: 20px;
+            font-weight: 600;
+            color: var(--primary-text-color);
+            margin-bottom: 4px;
+          }
+          .game-time {
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--primary-color);
+          }
+          .game-records {
+            text-align: center;
+            font-size: 14px;
+            color: var(--secondary-text-color);
+            margin-bottom: 12px;
+          }
+          .game-broadcasts {
+            text-align: center;
+            font-size: 12px;
+            color: var(--disabled-color);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
           }
           .goal-info {
-            background: var(--secondary-background-color, rgba(0,0,0,0.05));
-            border-radius: 8px;
-            padding: 12px;
-            margin-top: 12px;
+            background: var(--secondary-background-color);
+            border-left: 3px solid var(--error-color);
+            border-radius: 0 8px 8px 0;
+            padding: 12px 16px;
+            margin-top: 16px;
           }
           .goal-header {
-            font-size: 12px;
+            font-size: 11px;
             text-transform: uppercase;
             color: var(--secondary-text-color);
             margin-bottom: 6px;
             display: flex;
             align-items: center;
             gap: 6px;
+            letter-spacing: 0.5px;
           }
           .goal-icon {
-            font-size: 16px;
+            font-size: 14px;
           }
           .scorer {
-            font-size: 16px;
-            font-weight: bold;
+            font-size: 15px;
+            font-weight: 600;
             margin-bottom: 4px;
+            color: var(--primary-text-color);
           }
           .scorer .number {
             color: var(--secondary-text-color);
-            font-weight: normal;
+            font-weight: 500;
             margin-right: 4px;
           }
           .assists {
-            font-size: 13px;
+            font-size: 12px;
             color: var(--secondary-text-color);
           }
           .goal-type {
             display: inline-block;
-            font-size: 11px;
+            font-size: 10px;
             padding: 2px 6px;
             border-radius: 4px;
-            background: var(--primary-color);
+            background: var(--error-color);
             color: white;
             margin-left: 8px;
-          }
-          .pregame-info {
-            text-align: center;
-            padding: 16px;
-          }
-          .pregame-info .next-game {
-            font-size: 18px;
-            margin-bottom: 8px;
-          }
-          .pregame-info .next-game-date {
-            font-size: 20px;
-            font-weight: bold;
-            margin-bottom: 4px;
-          }
-          .pregame-info .next-game-time {
-            font-size: 24px;
-            font-weight: bold;
-            color: var(--primary-color);
-            margin-bottom: 12px;
-          }
-          .pregame-info .matchup {
-            font-size: 16px;
-            margin-bottom: 8px;
-          }
-          .pregame-info .records {
-            font-size: 13px;
-            color: var(--secondary-text-color);
-            margin-bottom: 8px;
-          }
-          .pregame-info .broadcasts {
-            font-size: 13px;
-            color: var(--secondary-text-color);
+            font-weight: 600;
           }
           .no-game {
             text-align: center;
-            padding: 24px;
+            padding: 32px 16px;
             color: var(--secondary-text-color);
           }
         </style>
 
         <div class="nhl-card">
-          ${this._renderGameHeader(gameState, periodDisplay, periodType)}
+          ${this._renderGameHeader(gameState, periodDisplay, periodType, lang)}
           
           ${isNoGame ? `
             <div class="no-game">
               <div style="font-size: 48px; margin-bottom: 12px;">🏒</div>
-              No Game Scheduled
+              <div style="font-size: 16px; font-weight: 500;">${this._t(lang, 'noGame')}</div>
             </div>
           ` : isFuture ? `
-            <div class="pregame-info">
-              <div class="next-game-date">${formattedNextGame || state}</div>
-              ${nextGameTime ? `<div class="next-game-time">${nextGameTime}</div>` : ''}
-              <div class="matchup">${awayName} @ ${homeName}</div>
-              ${awayRecord || homeRecord ? `<div class="records">${awayRecord || ''} vs ${homeRecord || ''}</div>` : ''}
-              ${attrs.national_broadcasts ? `
-                <div class="broadcasts">
-                  ${Array.isArray(attrs.national_broadcasts) ? attrs.national_broadcasts.join(', ') : attrs.national_broadcasts}
-                </div>
-              ` : ''}
+            <div class="pregame-header">${this._t(lang, 'nextGame')}</div>
+            <div class="pregame-matchup">
+              <div class="pregame-team">
+                ${this._config.show_team_logos !== false && awayLogo ? `
+                  <div class="team-logo away"></div>
+                ` : ''}
+                <div class="team-name">${awayName}</div>
+              </div>
+              <div class="pregame-vs">VS</div>
+              <div class="pregame-team">
+                ${this._config.show_team_logos !== false && homeLogo ? `
+                  <div class="team-logo home"></div>
+                ` : ''}
+                <div class="team-name">${homeName}</div>
+              </div>
             </div>
+            <div class="game-datetime">
+              <div class="game-date">${formattedNextGame || state}</div>
+              ${formattedTime ? `<div class="game-time">${formattedTime}</div>` : ''}
+            </div>
+            ${awayRecord || homeRecord ? `<div class="game-records">${awayRecord || ''} vs ${homeRecord || ''}</div>` : ''}
+            ${attrs.national_broadcasts && attrs.national_broadcasts.length ? `
+              <div class="game-broadcasts">
+                ${Array.isArray(attrs.national_broadcasts) ? attrs.national_broadcasts.join(' • ') : attrs.national_broadcasts}
+              </div>
+            ` : ''}
           ` : isPregame ? `
-            <div class="pregame-info">
-              <div class="next-game">PREGAME</div>
-              <div class="matchup">${awayName} @ ${homeName}</div>
-              ${awayRecord || homeRecord ? `<div class="records">${awayRecord || ''} vs ${homeRecord || ''}</div>` : ''}
-              ${attrs.national_broadcasts ? `
-                <div class="broadcasts">
-                  ${Array.isArray(attrs.national_broadcasts) ? attrs.national_broadcasts.join(', ') : attrs.national_broadcasts}
-                </div>
-              ` : ''}
+            <div class="game-header">${this._t(lang, 'pregame')}</div>
+            <div class="pregame-matchup">
+              <div class="pregame-team">
+                ${this._config.show_team_logos !== false && awayLogo ? `
+                  <div class="team-logo away"></div>
+                ` : ''}
+                <div class="team-name">${awayName}</div>
+              </div>
+              <div class="pregame-vs">@</div>
+              <div class="pregame-team">
+                ${this._config.show_team_logos !== false && homeLogo ? `
+                  <div class="team-logo home"></div>
+                ` : ''}
+                <div class="team-name">${homeName}</div>
+              </div>
             </div>
+            ${awayRecord || homeRecord ? `<div class="game-records">${awayRecord || ''} vs ${homeRecord || ''}</div>` : ''}
+            ${attrs.national_broadcasts && attrs.national_broadcasts.length ? `
+              <div class="game-broadcasts">
+                ${Array.isArray(attrs.national_broadcasts) ? attrs.national_broadcasts.join(' • ') : attrs.national_broadcasts}
+              </div>
+            ` : ''}
           ` : `
             <div class="scoreboard">
               <div class="team away">
@@ -323,7 +443,7 @@ class NHLCard extends HTMLElement {
                 ` : ''}
                 <div class="team-name">${awayName}</div>
                 ${awayRecord ? `<div class="team-record">${awayRecord}</div>` : ''}
-                ${isLive || isFinal ? `<div class="team-sog">${awaySog} SOG</div>` : ''}
+                ${isLive || isFinal ? `<div class="team-sog">${awaySog} ${this._t(lang, 'sog')}</div>` : ''}
               </div>
               
               <div class="score-section">
@@ -341,7 +461,7 @@ class NHLCard extends HTMLElement {
                 ` : ''}
                 <div class="team-name">${homeName}</div>
                 ${homeRecord ? `<div class="team-record">${homeRecord}</div>` : ''}
-                ${isLive || isFinal ? `<div class="team-sog">${homeSog} SOG</div>` : ''}
+                ${isLive || isFinal ? `<div class="team-sog">${homeSog} ${this._t(lang, 'sog')}</div>` : ''}
               </div>
             </div>
 
@@ -349,7 +469,7 @@ class NHLCard extends HTMLElement {
               <div class="goal-info">
                 <div class="goal-header">
                   <span class="goal-icon">🏒</span>
-                  <span>Last Goal</span>
+                  <span>${this._t(lang, 'lastGoal')}</span>
                   ${goalType && goalType !== 'EVEN' ? `<span class="goal-type">${goalType}</span>` : ''}
                 </div>
                 <div class="scorer">
@@ -358,7 +478,7 @@ class NHLCard extends HTMLElement {
                 </div>
                 ${assist1Player ? `
                   <div class="assists">
-                    Assists: ${assist1Player}${assist2Player ? `, ${assist2Player}` : ''}
+                    ${this._t(lang, 'assists')}: ${assist1Player}${assist2Player ? `, ${assist2Player}` : ''}
                   </div>
                 ` : ''}
               </div>
@@ -369,22 +489,22 @@ class NHLCard extends HTMLElement {
     `;
   }
 
-  _renderGameHeader(gameState, periodDisplay, periodType) {
+  _renderGameHeader(gameState, periodDisplay, periodType, lang) {
     let headerText = '';
     let cssClass = '';
 
     if (gameState === 'LIVE') {
-      headerText = '🔴 LIVE';
+      headerText = '🔴 ' + this._t(lang, 'live');
       cssClass = 'live';
     } else if (gameState === 'CRIT') {
-      headerText = '🔴 CRITICAL';
+      headerText = '🔴 ' + this._t(lang, 'critical');
       cssClass = 'live';
     } else if (gameState === 'FINAL' || gameState === 'OFF') {
-      headerText = periodType !== 'REG' ? `FINAL/${periodType}` : 'FINAL';
+      headerText = periodType !== 'REG' ? `${this._t(lang, 'final')}/${periodType}` : this._t(lang, 'final');
     } else if (gameState === 'PRE') {
-      headerText = 'PREGAME';
+      headerText = this._t(lang, 'pregame').toUpperCase();
     } else if (gameState === 'OVER') {
-      headerText = 'GAME OVER';
+      headerText = this._t(lang, 'final');
     }
 
     return headerText ? `
