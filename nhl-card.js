@@ -98,13 +98,21 @@ class NHLCard extends HTMLElement {
 
     // Game state detection - based on hass-nhlapi sensor.py logic
     // game_state attribute contains: FUT, PRE, LIVE, CRIT, OVER, FINAL, OFF
-    const gameState = attrs.game_state || 'FUT';  // Default to future if not set
+    const gameState = String(attrs.game_state || 'FUT');  // Ensure it's a string
+    
+    console.log('NHL Card Debug:', {
+      gameState: gameState,
+      gameStateType: typeof attrs.game_state,
+      rawGameState: attrs.game_state,
+      awayName: attrs.away_name,
+      homeName: attrs.home_name
+    });
     
     const isFuture = gameState === 'FUT';
     const isPregame = gameState === 'PRE';
     const isLive = gameState === 'LIVE' || gameState === 'CRIT';
     const isFinal = gameState === 'FINAL' || gameState === 'OFF' || gameState === 'OVER';
-    const isNoGame = !attrs.away_name && !attrs.home_name;
+    const isNoGame = !attrs.away_name || !attrs.home_name;
 
     let periodDisplay = '';
     if (isLive) {
