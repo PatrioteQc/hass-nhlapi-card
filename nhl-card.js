@@ -162,10 +162,9 @@ class NHLCard extends HTMLElement {
     // game_state attribute contains: FUT, PRE, LIVE, CRIT, OVER, FINAL, OFF
     const gameState = String(attrs.game_state || 'FUT');
     
-    const isFuture = gameState === 'FUT';
-    const isPregame = gameState === 'PRE';
-    const isLive = gameState === 'LIVE' || gameState === 'CRIT';
-    const isFinal = gameState === 'FINAL' || gameState === 'OFF' || gameState === 'OVER';
+    const isUpcoming = gameState === 'FUT' || gameState === 'PRE';
+    const isLive = gameState === 'LIVE' || gameState === 'CRIT' || gameState === 'OVER';
+    const isFinal = gameState === 'FINAL' || gameState === 'OFF';
     const isNoGame = !attrs.away_name || !attrs.home_name;
 
     let periodDisplay = '';
@@ -173,8 +172,8 @@ class NHLCard extends HTMLElement {
       periodDisplay = isIntermission ? 'INT' : `${currentPeriod} ${timeRemaining}`;
     } else if (isFinal) {
       periodDisplay = this._t(lang, 'final');
-    } else if (isPregame) {
-      periodDisplay = 'PRE';
+    } else if (isUpcoming) {
+      periodDisplay = this._t(lang, 'nextGame');
     }
 
     this.innerHTML = `
@@ -385,35 +384,8 @@ class NHLCard extends HTMLElement {
               <div style="font-size: 48px; margin-bottom: 12px;">🏒</div>
               <div style="font-size: 16px; font-weight: 500;">${this._t(lang, 'noGame')}</div>
             </div>
-          ` : isFuture ? `
+          ` : isUpcoming ? `
             <div class="pregame-header">${this._t(lang, 'nextGame')}</div>
-            <div class="pregame-matchup">
-              <div class="pregame-team">
-                ${this._config.show_team_logos !== false && awayLogo ? `
-                  <div class="team-logo away"></div>
-                ` : ''}
-                <div class="team-name">${awayName}</div>
-              </div>
-              <div class="pregame-vs">VS</div>
-              <div class="pregame-team">
-                ${this._config.show_team_logos !== false && homeLogo ? `
-                  <div class="team-logo home"></div>
-                ` : ''}
-                <div class="team-name">${homeName}</div>
-              </div>
-            </div>
-            <div class="game-datetime">
-              <div class="game-date">${formattedNextGame || state}</div>
-              ${formattedTime ? `<div class="game-time">${formattedTime}</div>` : ''}
-            </div>
-            ${awayRecord || homeRecord ? `<div class="game-records">${awayRecord || ''} vs ${homeRecord || ''}</div>` : ''}
-            ${attrs.national_broadcasts && attrs.national_broadcasts.length ? `
-              <div class="game-broadcasts">
-                ${Array.isArray(attrs.national_broadcasts) ? attrs.national_broadcasts.join(' • ') : attrs.national_broadcasts}
-              </div>
-            ` : ''}
-          ` : isPregame ? `
-            <div class="game-header">${this._t(lang, 'pregame')}</div>
             <div class="pregame-matchup">
               <div class="pregame-team">
                 ${this._config.show_team_logos !== false && awayLogo ? `
@@ -428,6 +400,10 @@ class NHLCard extends HTMLElement {
                 ` : ''}
                 <div class="team-name">${homeName}</div>
               </div>
+            </div>
+            <div class="game-datetime">
+              <div class="game-date">${formattedNextGame || state}</div>
+              ${formattedTime ? `<div class="game-time">${formattedTime}</div>` : ''}
             </div>
             ${awayRecord || homeRecord ? `<div class="game-records">${awayRecord || ''} vs ${homeRecord || ''}</div>` : ''}
             ${attrs.national_broadcasts && attrs.national_broadcasts.length ? `
@@ -501,10 +477,8 @@ class NHLCard extends HTMLElement {
       cssClass = 'live';
     } else if (gameState === 'FINAL' || gameState === 'OFF') {
       headerText = periodType !== 'REG' ? `${this._t(lang, 'final')}/${periodType}` : this._t(lang, 'final');
-    } else if (gameState === 'PRE') {
-      headerText = this._t(lang, 'pregame').toUpperCase();
     } else if (gameState === 'OVER') {
-      headerText = this._t(lang, 'final');
+      headerText = this._t(lang, 'live');
     }
 
     return headerText ? `
