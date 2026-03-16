@@ -96,11 +96,15 @@ class NHLCard extends HTMLElement {
       formattedNextGame = nextGameDate;
     }
 
+    // Check game state - use attribute if available, otherwise fall back to state
+    const gameStateAttr = attrs.game_state || state;
     const gameState = state;
-    const isLive = gameState === 'LIVE' || gameState === 'CRIT';
-    const isFinal = gameState === 'FINAL' || gameState === 'OFF';
-    const isPregame = gameState === 'PRE';
-    const isFuture = gameState.includes('Next Game') || (!isLive && !isFinal && !isPregame && awayName !== 'No Game Scheduled');
+    
+    const isLive = gameStateAttr === 'LIVE' || gameStateAttr === 'CRIT' || state === 'LIVE' || state === 'CRIT';
+    const isFinal = gameStateAttr === 'FINAL' || gameStateAttr === 'OFF' || state === 'FINAL' || state === 'OFF';
+    const isPregame = gameStateAttr === 'PRE' || state === 'PRE';
+    const isFuture = gameStateAttr === 'FUT' || state.includes('Next Game') || state.includes('2025') || state.includes('2026') || (!isLive && !isFinal && !isPregame && awayName !== 'No Game Scheduled');
+    const isNoGame = awayName === 'No Game Scheduled' || state === 'No Game Scheduled';
 
     let periodDisplay = '';
     if (isLive) {
@@ -273,21 +277,12 @@ class NHLCard extends HTMLElement {
         </style>
 
         <div class="nhl-card">
-          ${this._renderGameHeader(gameState, periodDisplay, periodType)}
+          ${this._renderGameHeader(gameStateAttr, periodDisplay, periodType)}
           
-          ${awayName === 'No Game Scheduled' ? `
+          ${isNoGame ? `
             <div class="no-game">
               <div style="font-size: 48px; margin-bottom: 12px;">🏒</div>
               No Game Scheduled
-            </div>
-          ` : isPregame ? `
-            <div class="pregame-info">
-              <div class="next-game">${state}</div>
-              ${attrs.national_broadcasts ? `
-                <div class="broadcasts">
-                  ${Array.isArray(attrs.national_broadcasts) ? attrs.national_broadcasts.join(', ') : attrs.national_broadcasts}
-                </div>
-              ` : ''}
             </div>
           ` : isFuture ? `
             <div class="pregame-info">
@@ -295,6 +290,15 @@ class NHLCard extends HTMLElement {
               ${nextGameTime ? `<div class="next-game-time">${nextGameTime}</div>` : ''}
               <div class="matchup">${awayName} @ ${homeName}</div>
               ${awayRecord || homeRecord ? `<div class="records">${awayRecord || ''} vs ${homeRecord || ''}</div>` : ''}
+              ${attrs.national_broadcasts ? `
+                <div class="broadcasts">
+                  ${Array.isArray(attrs.national_broadcasts) ? attrs.national_broadcasts.join(', ') : attrs.national_broadcasts}
+                </div>
+              ` : ''}
+            </div>
+          ` : isPregame ? `
+            <div class="pregame-info">
+              <div class="next-game">${state}</div>
               ${attrs.national_broadcasts ? `
                 <div class="broadcasts">
                   ${Array.isArray(attrs.national_broadcasts) ? attrs.national_broadcasts.join(', ') : attrs.national_broadcasts}
