@@ -3,7 +3,7 @@
  * A custom Lovelace card to display NHL game information
  * Requires the hass-nhlapi custom component
  * 
- * Version: 1.0.0
+ * Version: 1.3.0
  */
 
 class NHLCard extends HTMLElement {
@@ -51,7 +51,12 @@ class NHLCard extends HTMLElement {
         final: 'FINAL',
         lastGoal: 'Last Goal',
         assists: 'Assists',
-        sog: 'SOG'
+        sog: 'SOG',
+        countdown: 'Starts in',
+        days: 'd',
+        hours: 'h',
+        minutes: 'min',
+        seconds: 's'
       },
       fr: {
         nextGame: 'Prochain Match',
@@ -62,7 +67,12 @@ class NHLCard extends HTMLElement {
         final: 'FINAL',
         lastGoal: 'Dernier But',
         assists: 'Passes',
-        sog: 'Tirs'
+        sog: 'Tirs',
+        countdown: 'Début dans',
+        days: 'j',
+        hours: 'h',
+        minutes: 'min',
+        seconds: 's'
       }
     };
     const language = lang && lang.startsWith('fr') ? 'fr' : 'en';
@@ -103,6 +113,58 @@ class NHLCard extends HTMLElement {
     };
     
     return dateObj.toLocaleDateString(isFrench ? 'fr-FR' : 'en-US', options);
+  }
+
+  _getCountdown(nextGameDateTime) {
+    if (!nextGameDateTime) return null;
+    const now = new Date();
+    const gameTime = new Date(nextGameDateTime);
+    const diff = gameTime - now;
+    if (diff <= 0) return null;
+
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+    return { days, hours, minutes, seconds };
+  }
+
+  _formatCountdown(countdown, lang) {
+    if (!countdown) return '';
+    const parts = [];
+    if (countdown.days > 0) parts.push(`${countdown.days}${this._t(lang, 'days')}`);
+    if (countdown.hours > 0 || countdown.days > 0) parts.push(`${countdown.hours}${this._t(lang, 'hours')}`);
+    parts.push(`${String(countdown.minutes).padStart(2, '0')}${this._t(lang, 'minutes')}`);
+    parts.push(`${String(countdown.seconds).padStart(2, '0')}${this._t(lang, 'seconds')}`);
+    return parts.join(' ');
+  }
+
+  _startCountdownTimer() {
+    this._stopCountdownTimer();
+    this._countdownInterval = setInterval(() => {
+      const el = this.querySelector('.countdown-value');
+      if (!el) return;
+      const attrs = this._entity?.attributes;
+      const nextGameDateTime = attrs?.next_game_datetime || null;
+      const lang = this._hass?.language || 'en';
+      const countdown = this._getCountdown(nextGameDateTime);
+      if (countdown) {
+        el.textContent = this._formatCountdown(countdown, lang);
+      } else {
+        el.textContent = '';
+      }
+    }, 1000);
+  }
+
+  _stopCountdownTimer() {
+    if (this._countdownInterval) {
+      clearInterval(this._countdownInterval);
+      this._countdownInterval = null;
+    }
+  }
+
+  disconnectedCallback() {
+    this._stopCountdownTimer();
   }
 
   render() {
@@ -317,6 +379,24 @@ class NHLCard extends HTMLElement {
             color: var(--secondary-text-color);
             margin-bottom: 12px;
           }
+          .countdown-container {
+            text-align: center;
+            margin-bottom: 12px;
+          }
+          .countdown-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--secondary-text-color);
+            margin-bottom: 4px;
+          }
+          .countdown-value {
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--primary-color);
+            font-family: 'SF Mono', Monaco, monospace;
+            letter-spacing: 1px;
+          }
           .game-broadcasts {
             text-align: center;
             font-size: 12px;
@@ -405,6 +485,12 @@ class NHLCard extends HTMLElement {
               <div class="game-date">${formattedNextGame || state}</div>
               ${formattedTime ? `<div class="game-time">${formattedTime}</div>` : ''}
             </div>
+            ${nextGameDateTime ? `
+              <div class="countdown-container">
+                <div class="countdown-label">${this._t(lang, 'countdown')}</div>
+                <div class="countdown-value">${this._formatCountdown(this._getCountdown(nextGameDateTime), lang)}</div>
+              </div>
+            ` : ''}
             ${awayRecord || homeRecord ? `<div class="game-records">${awayRecord || ''} vs ${homeRecord || ''}</div>` : ''}
             ${attrs.national_broadcasts && attrs.national_broadcasts.length ? `
               <div class="game-broadcasts">
@@ -463,6 +549,12 @@ class NHLCard extends HTMLElement {
         </div>
       </ha-card>
     `;
+
+    if (isUpcoming && nextGameDateTime) {
+      this._startCountdownTimer();
+    } else {
+      this._stopCountdownTimer();
+    }
   }
 
   _renderGameHeader(gameState, periodDisplay, periodType, lang) {
