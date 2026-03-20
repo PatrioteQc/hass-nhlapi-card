@@ -105,10 +105,10 @@ show_team_logos: false
 ## Screenshots
 
 ### Live Game
-![Live Game](live-game.png)
+![Live Game](live.png)
 
 ### Pregame
-![Pregame](pre-game.png)
+![Pregame](pregame.png)
 
 ### Final Score
 ![Final](final.png)
